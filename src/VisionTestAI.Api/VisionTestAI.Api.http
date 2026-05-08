@@ -1,0 +1,6 @@
+@VisionTestAI.Api_HostAddress = http://localhost:5101
+
+GET {{VisionTestAI.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
