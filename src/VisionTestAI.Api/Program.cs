@@ -10,7 +10,49 @@ using VisionTestAI.Api.Middleware;
 using VisionTestAI.Application;
 using VisionTestAI.Infrastructure;
 
+// ── Load .env file so env vars work outside Docker Compose ──
+LoadEnvFile();
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Lightweight .env file loader — searches current dir and up to 4 parents
+static void LoadEnvFile()
+{
+    var dir = Directory.GetCurrentDirectory();
+    string? envPath = null;
+
+    // Walk up to find the .env file (handles running from src/Api vs project root)
+    for (var i = 0; i < 5 && dir is not null; i++)
+    {
+        var candidate = Path.Combine(dir, ".env");
+        if (File.Exists(candidate)) { envPath = candidate; break; }
+        dir = Directory.GetParent(dir)?.FullName;
+    }
+
+    if (envPath is null) return;
+
+    foreach (var line in File.ReadAllLines(envPath))
+    {
+        var trimmed = line.Trim();
+        if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
+        var idx = trimmed.IndexOf('=');
+        if (idx <= 0) continue;
+        var key = trimmed[..idx].Trim();
+        var val = trimmed[(idx + 1)..].Trim();
+        // Only set if not already defined (real env vars take precedence)
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+        {
+            Environment.SetEnvironmentVariable(key, val);
+        }
+
+        // Map docker-compose-style env vars to ASP.NET config keys
+        // e.g. GEMINI_API_KEY -> Gemini__ApiKey (matches docker-compose.yml mapping)
+        if (key == "GEMINI_API_KEY" && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("Gemini__ApiKey")))
+        {
+            Environment.SetEnvironmentVariable("Gemini__ApiKey", val);
+        }
+    }
+}
 
 // ─── Serilog ───
 Log.Logger = new LoggerConfiguration()

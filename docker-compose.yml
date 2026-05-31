@@ -10,7 +10,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -27,7 +27,7 @@ services:
       - Jwt__Key=VisionTestAI-Super-Secret-Key-That-Is-Long-Enough-For-256-Bits!!
       - Jwt__Issuer=VisionTestAI
       - Jwt__Audience=VisionTestAI-Client
-      - Gemini__ApiKey=AIzaSyC236W9JnC5q9LUB-7HPbn69GN-fcsuJZ8
+      - Gemini__ApiKey=${GEMINI_API_KEY}
       - Cors__Origins__0=http://localhost:5173
       - Cors__Origins__1=http://localhost:3000
     depends_on:

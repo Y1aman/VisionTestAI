@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using VisionTestAI.Domain.Entities;
@@ -15,17 +16,110 @@ public class AiService : IAiService
     private readonly ILogger<AiService> _logger;
     private readonly bool _useMock;
 
+    // Shared JSON options with case-insensitive enum converter
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
+
+    // Model fallback chain: try each in order if the previous one is rate-limited
+    private static readonly string[] ModelFallbackChain =
+    [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite"
+    ];
+
     public AiService(IHttpClientFactory factory, IConfiguration config, ILogger<AiService> logger)
     {
         _http = factory.CreateClient("Gemini");
         _apiKey = config["Gemini:ApiKey"];
         _logger = logger;
         _useMock = string.IsNullOrEmpty(_apiKey) || _apiKey == "your-api-key-here";
+
+        // ── Diagnostic logging so mock-mode activation is never silent ──
+        if (_useMock)
+        {
+            _logger.LogWarning(
+                "[AiService] ⚠️  MOCK MODE ACTIVE. Gemini API key is missing or placeholder. " +
+                "Set the Gemini:ApiKey configuration value (env var Gemini__ApiKey) to a valid key.");
+        }
+        else
+        {
+            var masked = _apiKey!.Length > 8
+                ? $"{_apiKey[..4]}...{_apiKey[^4..]}"
+                : "****";
+            _logger.LogInformation("[AiService] ✅ Gemini API key loaded ({MaskedKey}). Live mode enabled.", masked);
+        }
+    }
+
+    /// <summary>
+    /// Calls the Gemini API with model fallback chain and retry logic for rate limits.
+    /// Returns the text content from the response, or null if all models fail.
+    /// </summary>
+    private async Task<string?> CallGeminiAsync(object body, CancellationToken ct)
+    {
+        foreach (var model in ModelFallbackChain)
+        {
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_apiKey}";
+
+            // Retry with backoff for 429 on this model
+            var retryDelays = new[] { 2000, 4000 }; // ms — keep it short per model since we have fallbacks
+            for (var attempt = 0; attempt <= retryDelays.Length; attempt++)
+            {
+                var resp = await _http.PostAsJsonAsync(url, body, ct);
+
+                if (resp.IsSuccessStatusCode)
+                {
+                    var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>(ct);
+                    var content = doc?.RootElement.GetProperty("candidates")[0]
+                        .GetProperty("content").GetProperty("parts")[0]
+                        .GetProperty("text").GetString() ?? "";
+
+                    _logger.LogInformation(
+                        "[AiService] ✅ {Model} responded successfully (first 300 chars): {Content}",
+                        model, content.Length > 300 ? content[..300] : content);
+                    return content;
+                }
+
+                var statusCode = (int)resp.StatusCode;
+
+                if (statusCode == 429 && attempt < retryDelays.Length)
+                {
+                    _logger.LogWarning(
+                        "[AiService] ⏳ {Model} returned 429 (rate limit). Retrying in {Delay}ms (attempt {Attempt}/{Max})...",
+                        model, retryDelays[attempt], attempt + 1, retryDelays.Length);
+                    await Task.Delay(retryDelays[attempt], ct);
+                    continue;
+                }
+
+                if (statusCode == 429 || statusCode == 503)
+                {
+                    _logger.LogWarning("[AiService] ⚠️ {Model} exhausted (HTTP {Code}). Trying next model...", model, statusCode);
+                    break; // try next model
+                }
+
+                // Non-retryable error
+                var errorBody = await resp.Content.ReadAsStringAsync(ct);
+                _logger.LogError(
+                    "[AiService] ❌ {Model} returned HTTP {StatusCode}. Response: {Body}",
+                    model, statusCode, errorBody);
+                break; // try next model
+            }
+        }
+
+        _logger.LogError("[AiService] ❌ All Gemini models failed. No AI response available.");
+        return null;
     }
 
     public async Task<List<TestStep>> GenerateTestPlanAsync(string prompt, string targetUrl, CancellationToken ct = default)
     {
-        if (_useMock) return GenerateMockPlan(prompt, targetUrl);
+        if (_useMock)
+        {
+            _logger.LogWarning("[AiService] Returning MOCK test plan (API key not configured). Prompt was: {Prompt}", prompt);
+            return GenerateMockPlan(prompt, targetUrl);
+        }
 
         var body = new
         {
@@ -46,22 +140,54 @@ public class AiService : IAiService
 
         try
         {
-            var resp = await _http.PostAsJsonAsync($"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={_apiKey}", body, ct);
-            resp.EnsureSuccessStatusCode();
-            var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>(ct);
-            
-            var content = doc?.RootElement.GetProperty("candidates")[0]
-                .GetProperty("content").GetProperty("parts")[0]
-                .GetProperty("text").GetString() ?? "";
-                
+            _logger.LogInformation("[AiService] Sending prompt to Gemini API for URL: {Url}", targetUrl);
+
+            var content = await CallGeminiAsync(body, ct);
+            if (content is null) return GenerateMockPlan(prompt, targetUrl);
+
             content = content.Trim();
-            if (content.StartsWith("```")) { var s = content.IndexOf('['); var e = content.LastIndexOf(']'); if (s >= 0 && e > s) content = content[s..(e+1)]; }
-            
-            return JsonSerializer.Deserialize<List<TestStep>>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? GenerateMockPlan(prompt, targetUrl);
+            content = StripMarkdownCodeBlock(content);
+
+            var steps = JsonSerializer.Deserialize<List<TestStep>>(content, JsonOpts);
+
+            if (steps is null || steps.Count == 0)
+            {
+                _logger.LogWarning("[AiService] ⚠️ Gemini returned empty/null step list. Falling back to mock.");
+                return GenerateMockPlan(prompt, targetUrl);
+            }
+
+            // ── Post-processing: fix common AI response issues ──
+
+            // Ensure all Navigate steps have the target URL if their value is empty
+            foreach (var step in steps.Where(s => s.Action == StepAction.Navigate))
+            {
+                if (string.IsNullOrWhiteSpace(step.Value) || !step.Value.StartsWith("http"))
+                    step.Value = targetUrl;
+            }
+
+            // Ensure first step is always Navigate to the target URL
+            if (steps[0].Action != StepAction.Navigate)
+            {
+                steps.Insert(0, new TestStep
+                {
+                    Order = 0,
+                    Action = StepAction.Navigate,
+                    Value = targetUrl,
+                    Description = $"Navigate to {targetUrl}",
+                    DescriptionAr = $"الانتقال إلى {targetUrl}"
+                });
+            }
+
+            // Re-number steps sequentially
+            for (var i = 0; i < steps.Count; i++)
+                steps[i].Order = i + 1;
+
+            _logger.LogInformation("[AiService] ✅ Generated {Count} test steps successfully.", steps.Count);
+            return steps;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Gemini API request failed (e.g., Rate Limit/Quota). Falling back to mock test plan.");
+            _logger.LogError(ex, "[AiService] ❌ Gemini API request failed with exception. Falling back to mock test plan.");
             return GenerateMockPlan(prompt, targetUrl);
         }
     }
@@ -104,25 +230,21 @@ public class AiService : IAiService
                     }
                 };
 
-                var resp = await _http.PostAsJsonAsync($"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={_apiKey}", body, ct);
-                resp.EnsureSuccessStatusCode();
-                var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>(ct);
-                
-                var c = doc?.RootElement.GetProperty("candidates")[0]
-                    .GetProperty("content").GetProperty("parts")[0]
-                    .GetProperty("text").GetString() ?? "";
+                var c = await CallGeminiAsync(body, ct);
+                if (c is not null)
+                {
+                    c = c.Trim();
+                    c = StripMarkdownCodeBlock(c);
                     
-                c = c.Trim(); 
-                if (c.StartsWith("```")) { var s = c.IndexOf('{'); var e = c.LastIndexOf('}'); if (s >= 0 && e > s) c = c[s..(e+1)]; }
-                
-                var a = JsonSerializer.Deserialize<JsonDocument>(c);
-                if (a is not null) 
-                    return (
-                        a.RootElement.GetProperty("summaryEn").GetString() ?? "", 
-                        a.RootElement.GetProperty("summaryAr").GetString() ?? "",
-                        a.RootElement.TryGetProperty("failureEn", out var fe) ? fe.GetString() : null, 
-                        a.RootElement.TryGetProperty("failureAr", out var fa) ? fa.GetString() : null
-                    );
+                    var a = JsonSerializer.Deserialize<JsonDocument>(c);
+                    if (a is not null) 
+                        return (
+                            a.RootElement.GetProperty("summaryEn").GetString() ?? "", 
+                            a.RootElement.GetProperty("summaryAr").GetString() ?? "",
+                            a.RootElement.TryGetProperty("failureEn", out var fe) ? fe.GetString() : null, 
+                            a.RootElement.TryGetProperty("failureAr", out var fa) ? fa.GetString() : null
+                        );
+                }
             }
             catch (Exception ex) { _logger.LogError(ex, "AI analysis failed"); }
         }
@@ -150,5 +272,23 @@ public class AiService : IAiService
             steps.Add(new() { Order = 5, Action = StepAction.Screenshot, Description = "Capture scrolled state", DescriptionAr = "التقاط بعد التمرير" });
         }
         return steps;
+    }
+
+    private static string StripMarkdownCodeBlock(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return input;
+        var trimmed = input.Trim();
+        if (trimmed.StartsWith("```"))
+        {
+            // Remove opening line (e.g. ```json, ```JSON, ```)
+            var firstNewline = trimmed.IndexOf('\n');
+            if (firstNewline >= 0)
+                trimmed = trimmed[(firstNewline + 1)..];
+            // Remove closing ```
+            if (trimmed.TrimEnd().EndsWith("```"))
+                trimmed = trimmed.TrimEnd()[..^3];
+            trimmed = trimmed.Trim();
+        }
+        return trimmed;
     }
 }
