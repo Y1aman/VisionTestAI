@@ -70,8 +70,8 @@ export default function LiveTestPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-3">
           {completed ? (
             finalStatus === 'Passed' ? <CheckCircle2 className="w-7 h-7 text-green-400" /> : <XCircle className="w-7 h-7 text-red-400" />
           ) : (

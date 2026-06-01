@@ -44,8 +44,8 @@ export default function NewTestPage() {
     <div className="max-w-5xl mx-auto space-y-8">
       {/* Header */}
       <div className="mb-10">
-        <h1 className="text-4xl font-bold flex items-center gap-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-          <Sparkles className="w-10 h-10 text-purple-400" />
+        <h1 className="text-2xl sm:text-4xl font-bold flex items-center gap-3 sm:gap-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          <Sparkles className="w-7 h-7 sm:w-10 sm:h-10 text-purple-400" />
           {t('newTest')}
         </h1>
         <p className="text-[var(--text-secondary)] mt-3 text-lg">{t('describeTest')}</p>

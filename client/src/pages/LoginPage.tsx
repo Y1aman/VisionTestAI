@@ -63,8 +63,8 @@ export default function LoginPage() {
       </div>
 
       {/* Right - Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 relative">
-        <div className="absolute top-8 right-8 z-20">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-4 sm:p-8 relative">
+        <div className="absolute top-4 right-4 sm:top-8 sm:right-8 z-20">
           <button onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-medium transition-all border border-white/10 backdrop-blur-md">
             <Globe className="w-4 h-4" />
@@ -73,8 +73,8 @@ export default function LoginPage() {
         </div>
 
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="w-full max-w-md">
-          <div className="glass-card p-10">
-            <h2 className="text-3xl font-bold mb-3 text-white">{isLogin ? t('loginTitle') : t('registerTitle')}</h2>
+          <div className="glass-card p-6 sm:p-10">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-white">{isLogin ? t('loginTitle') : t('registerTitle')}</h2>
             <p className="text-[var(--text-secondary)] mb-8 text-lg">{isLogin ? t('loginSubtitle') : t('registerSubtitle')}</p>
 
             <form onSubmit={handleSubmit} className="space-y-5">

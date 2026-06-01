@@ -31,13 +31,13 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent pb-1">{t('dashboard')}</h1>
+          <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent pb-1">{t('dashboard')}</h1>
           <p className="text-[var(--text-secondary)] mt-2 text-lg">{language === 'ar' ? 'نظرة عامة على اختباراتك ومساحة العمل' : 'Overview of your testing workspace'}</p>
         </div>
         <button onClick={() => navigate('/new-test')}
-          className="btn-primary px-8 py-4 flex items-center gap-3">
+          className="btn-primary px-6 py-3 sm:px-8 sm:py-4 flex items-center gap-3 w-full sm:w-auto justify-center">
           <Plus className="w-5 h-5" />
           {t('newTest')}
         </button>
@@ -90,7 +90,7 @@ export default function DashboardPage() {
               <tbody className="divide-y divide-white/5">
                 {tests.map((test) => (
                   <tr key={test.id} className="hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate(test.status === 'Running' ? `/live/${test.id}` : `/report/${test.id}`)}>
-                    <td className="py-5 max-w-xs truncate font-medium text-white group-hover:text-blue-400 transition-colors pr-4">{test.prompt}</td>
+                    <td className="py-5 max-w-[150px] sm:max-w-xs truncate font-medium text-white group-hover:text-blue-400 transition-colors pr-4">{test.prompt}</td>
                     <td className="py-5 text-sm text-[var(--text-secondary)] max-w-[200px] truncate pr-4">{test.targetUrl}</td>
                     <td className="py-5 pr-4">{statusBadge(test.status)}</td>
                     <td className="py-5 text-sm text-[var(--text-secondary)] pr-4"><Clock className="w-3.5 h-3.5 inline mr-1.5" />{test.durationMs ? `${(test.durationMs/1000).toFixed(1)}s` : '-'}</td>

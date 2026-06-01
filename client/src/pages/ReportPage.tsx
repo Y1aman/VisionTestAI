@@ -24,7 +24,7 @@ export default function ReportPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      <h1 className="text-3xl font-bold flex items-center gap-3">
+      <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
         <FileText className="w-8 h-8 text-blue-400" />
         {t('testReport')}
       </h1>
@@ -32,7 +32,7 @@ export default function ReportPage() {
       {/* Summary Card */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className={`glass-card p-8 border-2 ${isPassed ? 'border-green-500/30' : 'border-red-500/30'}`}>
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
           {isPassed
             ? <CheckCircle2 className="w-12 h-12 text-green-400" />
             : <XCircle className="w-12 h-12 text-red-400" />
@@ -101,7 +101,7 @@ export default function ReportPage() {
                   }
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <p className="font-medium">{language === 'ar' ? step.descriptionAr : step.description}</p>
                     <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                       <span className={`badge ${step.status === 'Passed' ? 'badge-passed' : 'badge-failed'}`}>{step.action}</span>
