@@ -65,6 +65,8 @@ export const translations = {
     viewReport: 'View Report',
     viewDetails: 'View Details',
     createdAt: 'Created',
+    darkMode: 'Dark Mode',
+    lightMode: 'Light Mode',
   },
   ar: {
     appName: 'فيجن تست AI',
@@ -124,6 +126,8 @@ export const translations = {
     viewReport: 'عرض التقرير',
     viewDetails: 'عرض التفاصيل',
     createdAt: 'تاريخ الإنشاء',
+    darkMode: 'الوضع الداكن',
+    lightMode: 'الوضع الفاتح',
   }
 } as const;
 

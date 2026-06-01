@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore';
+import { useThemeStore } from './stores/themeStore';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import NewTestPage from './pages/NewTestPage';
@@ -18,16 +19,27 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const language = useAuthStore((s) => s.language);
+  const theme = useThemeStore((s) => s.theme);
   
   useEffect(() => {
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = language;
   }, [language]);
 
+  // Theme is applied via themeStore on init, this keeps React in sync
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   return (
     <BrowserRouter>
       <Toaster position={language === 'ar' ? 'top-left' : 'top-right'} toastOptions={{
-        style: { background: '#1e1e46', color: '#e2e8f0', border: '1px solid rgba(59,130,246,0.3)' }
+        style: {
+          background: 'var(--bg-secondary)',
+          color: 'var(--text-primary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '12px',
+        }
       }} />
       <Routes>
         <Route path="/login" element={<LoginPage />} />

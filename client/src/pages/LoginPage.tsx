@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useThemeStore } from '../stores/themeStore';
 import { authApi } from '../api/client';
 import { motion } from 'framer-motion';
-import { FlaskConical, Eye, Sparkles, Globe } from 'lucide-react';
+import { FlaskConical, Eye, Sparkles, Globe, Sun, Moon, ArrowRight, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', fullName: '', tenantName: '', preferredLanguage: 'en' });
   const { setAuth, language, setLanguage, t } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,83 +32,194 @@ export default function LoginPage() {
     }
   };
 
+  const features = [
+    { icon: Sparkles, en: 'NL to Test', ar: 'من النص إلى الاختبار', descEn: 'Natural language to automated tests', descAr: 'تحويل النصوص إلى اختبارات' },
+    { icon: Eye, en: 'Live Stream', ar: 'بث مباشر', descEn: 'Watch tests execute in real-time', descAr: 'شاهد الاختبارات مباشرة' },
+    { icon: FlaskConical, en: 'AI Reports', ar: 'تقارير ذكية', descEn: 'Smart AI-powered analysis', descAr: 'تحليل ذكي بالذكاء الاصطناعي' },
+  ];
+
   return (
-    <div className="min-h-screen flex bg-[var(--bg-primary)] bg-grid">
-      {/* Left - Branding */}
-      <div className="hidden lg:flex w-1/2 flex-col justify-center items-center p-12 relative overflow-hidden">
-        <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 text-center max-w-lg">
-          <div className="w-28 h-28 mx-auto rounded-3xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-10 shadow-[0_0_50px_rgba(139,92,246,0.3)]">
-            <FlaskConical className="w-14 h-14 text-white" />
-          </div>
-          <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-blue-400 via-cyan-300 to-purple-400 bg-clip-text text-transparent pb-2">
+    <div className="login-page">
+      {/* ── Floating Top-Right Controls ── */}
+      <div className="login-controls">
+        <button
+          onClick={toggleTheme}
+          className="login-control-btn"
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+        </button>
+        <button
+          onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+          className="login-control-btn login-control-btn--lang"
+        >
+          <Globe className="w-[18px] h-[18px]" />
+          <span>{language === 'en' ? 'العربية' : 'English'}</span>
+        </button>
+      </div>
+
+      {/* ════════════════════════════════════════════ */}
+      {/* LEFT COLUMN — Branding & Value Proposition  */}
+      {/* ════════════════════════════════════════════ */}
+      <div className="login-branding">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="login-branding__inner"
+        >
+          {/* Logo */}
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.15, type: 'spring', stiffness: 200, damping: 20 }}
+            className="login-logo"
+          >
+            <FlaskConical className="w-12 h-12 text-white" />
+          </motion.div>
+
+          {/* Title */}
+          <h1 className="login-branding__title">
             VisionTest AI
           </h1>
-          <p className="text-2xl text-[var(--text-secondary)] mx-auto mb-16 leading-relaxed">
-            {language === 'ar' 
+
+          {/* Subtitle */}
+          <p className="login-branding__subtitle">
+            {language === 'ar'
               ? 'حوّل أوصاف الاختبارات إلى سيناريوهات مؤتمتة مرئية بقوة الذكاء الاصطناعي'
               : 'Transform test descriptions into visual automated scenarios powered by AI'}
           </p>
-          <div className="grid grid-cols-3 gap-6">
-            {[
-              { icon: Sparkles, en: 'NL to Test', ar: 'من النص إلى الاختبار' },
-              { icon: Eye, en: 'Live Stream', ar: 'بث مباشر' },
-              { icon: FlaskConical, en: 'AI Reports', ar: 'تقارير ذكية' },
-            ].map(({ icon: Icon, en, ar }, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.1 }}
-                className="glass-card p-6 text-center border-white/5 bg-white/5">
-                <Icon className="w-8 h-8 mx-auto mb-3 text-cyan-400" />
-                <p className="text-sm font-medium text-white">{language === 'ar' ? ar : en}</p>
+
+          {/* Feature Badges */}
+          <div className="login-features">
+            {features.map(({ icon: Icon, en, ar, descEn, descAr }, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 + i * 0.1, duration: 0.4 }}
+                className="login-feature-badge"
+              >
+                <div className="login-feature-badge__icon">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="login-feature-badge__title">{language === 'ar' ? ar : en}</p>
+                  <p className="login-feature-badge__desc">{language === 'ar' ? descAr : descEn}</p>
+                </div>
               </motion.div>
             ))}
           </div>
         </motion.div>
       </div>
 
-      {/* Right - Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-4 sm:p-8 relative">
-        <div className="absolute top-4 right-4 sm:top-8 sm:right-8 z-20">
-          <button onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-medium transition-all border border-white/10 backdrop-blur-md">
-            <Globe className="w-4 h-4" />
-            {language === 'en' ? 'العربية' : 'English'}
-          </button>
-        </div>
+      {/* ════════════════════════════════════════ */}
+      {/* RIGHT COLUMN — Authentication Form      */}
+      {/* ════════════════════════════════════════ */}
+      <div className="login-form-wrapper">
+        <motion.div
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="login-card"
+        >
+          {/* Mobile-only compact logo */}
+          <div className="login-card__mobile-logo">
+            <div className="login-logo login-logo--sm">
+              <FlaskConical className="w-7 h-7 text-white" />
+            </div>
+            <span className="login-branding__title login-branding__title--sm">VisionTest AI</span>
+          </div>
 
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="w-full max-w-md">
-          <div className="glass-card p-6 sm:p-10">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-white">{isLogin ? t('loginTitle') : t('registerTitle')}</h2>
-            <p className="text-[var(--text-secondary)] mb-8 text-lg">{isLogin ? t('loginSubtitle') : t('registerSubtitle')}</p>
+          {/* Heading */}
+          <div className="login-card__header">
+            <h2 className="login-card__title">
+              {isLogin ? t('loginTitle') : t('registerTitle')}
+            </h2>
+            <p className="login-card__subtitle">
+              {isLogin ? t('loginSubtitle') : t('registerSubtitle')}
+            </p>
+          </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {!isLogin && (
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="login-form">
+            {!isLogin && (
+              <>
+                <div className="login-field">
+                  <label className="login-label">{t('fullName')}</label>
+                  <input
+                    type="text"
+                    placeholder={t('fullName')}
+                    value={form.fullName}
+                    onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                    required
+                    className="login-input"
+                  />
+                </div>
+                <div className="login-field">
+                  <label className="login-label">{t('teamName')}</label>
+                  <input
+                    type="text"
+                    placeholder={t('teamName')}
+                    value={form.tenantName}
+                    onChange={(e) => setForm({ ...form, tenantName: e.target.value })}
+                    required
+                    className="login-input"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="login-field">
+              <label className="login-label">{t('email')}</label>
+              <input
+                type="email"
+                placeholder={language === 'ar' ? 'you@example.com' : 'you@example.com'}
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                required
+                className="login-input"
+              />
+            </div>
+
+            <div className="login-field">
+              <label className="login-label">{t('password')}</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                required
+                minLength={6}
+                className="login-input"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="login-submit"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
                 <>
-                  <input type="text" placeholder={t('fullName')} value={form.fullName}
-                    onChange={(e) => setForm({ ...form, fullName: e.target.value })} required
-                    className="input-glass w-full px-5 py-4" />
-                  <input type="text" placeholder={t('teamName')} value={form.tenantName}
-                    onChange={(e) => setForm({ ...form, tenantName: e.target.value })} required
-                    className="input-glass w-full px-5 py-4" />
+                  <span>{isLogin ? t('login') : t('register')}</span>
+                  <ArrowRight className="w-5 h-5" />
                 </>
               )}
-              <input type="email" placeholder={t('email')} value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })} required
-                className="input-glass w-full px-5 py-4" />
-              <input type="password" placeholder={t('password')} value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6}
-                className="input-glass w-full px-5 py-4" />
-              
-              <button type="submit" disabled={loading}
-                className="btn-primary w-full py-4 mt-4 text-lg">
-                {loading ? '...' : isLogin ? t('login') : t('register')}
-              </button>
-            </form>
+            </button>
+          </form>
 
-            <p className="text-center mt-8 text-[var(--text-secondary)]">
-              {isLogin ? t('noAccount') : t('haveAccount')}{' '}
-              <button onClick={() => setIsLogin(!isLogin)} className="text-purple-400 hover:text-purple-300 font-semibold ml-1 transition-colors">
-                {isLogin ? t('register') : t('login')}
-              </button>
-            </p>
+          {/* Toggle Login/Register */}
+          <div className="login-card__footer">
+            <span>{isLogin ? t('noAccount') : t('haveAccount')}</span>
+            <button
+              onClick={() => setIsLogin(!isLogin)}
+              className="login-switch-btn"
+            >
+              {isLogin ? t('register') : t('login')}
+            </button>
           </div>
         </motion.div>
       </div>

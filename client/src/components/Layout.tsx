@@ -1,20 +1,35 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { LayoutDashboard, Plus, History, LogOut, Globe, FlaskConical, PanelLeftClose, PanelLeftOpen, Menu, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useThemeStore } from '../stores/themeStore';
+import { LayoutDashboard, Plus, History, LogOut, Globe, FlaskConical, Menu, X, Sun, Moon } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function Layout() {
   const { user, logout, language, setLanguage, t } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Close mobile menu on route change
+  // Close drawer on route change
   useEffect(() => {
-    setMobileOpen(false);
+    setDrawerOpen(false);
   }, [location]);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+
+  const handleNav = (to: string) => {
+    closeDrawer();
+    navigate(to);
+  };
 
   const links = [
     { to: '/', icon: LayoutDashboard, label: t('dashboard') },
@@ -22,155 +37,308 @@ export default function Layout() {
     { to: '/history', icon: History, label: t('history') },
   ];
 
-  const sidebarContent = (mobile: boolean) => (
-    <>
-      {/* Logo + Toggle / Close */}
-      <div className="p-4 border-b border-white/5">
-        <div className="flex items-center justify-between">
-          <div className={`flex items-center gap-4 ${!mobile && collapsed ? 'justify-center w-full' : ''}`}>
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg shadow-purple-500/20 flex-shrink-0">
-              <FlaskConical className="w-6 h-6 text-white" />
-            </div>
-            {(mobile || !collapsed) && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {t('appName')}
-                </h1>
-                <p className="text-xs text-[var(--text-secondary)] mt-0.5">{user?.tenantName}</p>
-              </motion.div>
-            )}
-          </div>
-          {mobile ? (
+  /* ─── Desktop Icon Rail (always visible on lg+) ─── */
+  const iconRail = (
+    <aside
+      style={{
+        width: '72px',
+        background: 'var(--bg-secondary)',
+        borderRight: '1px solid var(--border-color)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        flexShrink: 0,
+        zIndex: 20,
+        paddingTop: '20px',
+        paddingBottom: '16px',
+        transition: 'all 0.3s ease',
+      }}
+      className="hidden lg:flex"
+    >
+      {/* Logo — click to toggle drawer */}
+      <button
+        onClick={openDrawer}
+        style={{
+          width: '44px',
+          height: '44px',
+          borderRadius: '14px',
+          background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          border: 'none',
+          boxShadow: '0 4px 16px rgba(139, 92, 246, 0.25)',
+          marginBottom: '28px',
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(139, 92, 246, 0.35)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(139, 92, 246, 0.25)'; }}
+        title="Open sidebar"
+      >
+        <FlaskConical style={{ width: '20px', height: '20px', color: 'white' }} />
+      </button>
+
+      {/* Nav Icons */}
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', padding: '0 12px' }}>
+        {links.map(({ to, icon: Icon, label }) => {
+          const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
+          return (
             <button
-              onClick={() => setMobileOpen(false)}
-              className="p-2 rounded-xl text-[var(--text-secondary)] hover:bg-white/5 hover:text-white transition-all"
-              title="Close menu"
+              key={to}
+              onClick={() => handleNav(to)}
+              title={label}
+              style={{
+                width: '100%',
+                height: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '12px',
+                border: isActive ? '1px solid var(--active-nav-border)' : '1px solid transparent',
+                background: isActive ? 'var(--active-nav-from)' : 'transparent',
+                color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = 'var(--hover-surface)'; e.currentTarget.style.color = 'var(--text-primary)'; } }}
+              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
             >
-              <X className="w-6 h-6" />
+              <Icon style={{ width: '20px', height: '20px' }} />
             </button>
-          ) : (
-            !collapsed && (
-              <button
-                onClick={() => setCollapsed(true)}
-                className="p-2 rounded-xl text-[var(--text-secondary)] hover:bg-white/5 hover:text-white transition-all"
-                title="Collapse sidebar"
-              >
-                <PanelLeftClose className="w-5 h-5" />
-              </button>
-            )
-          )}
+          );
+        })}
+      </nav>
+
+      {/* Bottom Actions */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', padding: '0 12px' }}>
+        <button onClick={toggleTheme} title={theme === 'dark' ? t('lightMode') : t('darkMode')}
+          style={{ width: '100%', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover-surface)'; e.currentTarget.style.color = 'var(--accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          {theme === 'dark' ? <Sun style={{ width: '20px', height: '20px' }} /> : <Moon style={{ width: '20px', height: '20px' }} />}
+        </button>
+        <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
+        <button onClick={() => { logout(); navigate('/login'); }} title={t('logout')}
+          style={{ width: '100%', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: 'none', background: 'transparent', color: 'var(--badge-fail-text)', opacity: 0.6, cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--badge-fail-bg)'; e.currentTarget.style.opacity = '1'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.opacity = '0.6'; }}
+        >
+          <LogOut style={{ width: '20px', height: '20px' }} />
+        </button>
+      </div>
+    </aside>
+  );
+
+  /* ─── Full Sidebar Drawer (shared for desktop overlay + mobile) ─── */
+  const sidebarDrawer = (
+    <aside
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: '280px',
+        background: 'var(--bg-secondary)',
+        borderRight: '1px solid var(--border-color)',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 60,
+        transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        boxShadow: drawerOpen ? '8px 0 32px rgba(0,0,0,0.2)' : 'none',
+      }}
+    >
+      {/* Header */}
+      <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '42px', height: '42px', borderRadius: '12px',
+            background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 16px rgba(139, 92, 246, 0.25)', flexShrink: 0,
+          }}>
+            <FlaskConical style={{ width: '20px', height: '20px', color: 'white' }} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: '17px', fontWeight: 700, background: 'linear-gradient(to right, #a78bfa, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.2 }}>
+              {t('appName')}
+            </h1>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.tenantName}
+            </p>
+          </div>
         </div>
-        {!mobile && collapsed && (
-          <button
-            onClick={() => setCollapsed(false)}
-            className="mt-3 p-2 rounded-xl text-[var(--text-secondary)] hover:bg-white/5 hover:text-white transition-all w-full flex justify-center"
-            title="Expand sidebar"
-          >
-            <PanelLeftOpen className="w-5 h-5" />
-          </button>
-        )}
+        <button onClick={closeDrawer} title="Close"
+          style={{ width: '36px', height: '36px', borderRadius: '10px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover-surface)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          <X style={{ width: '18px', height: '18px' }} />
+        </button>
       </div>
 
       {/* Nav Links */}
-      <nav className={`flex-1 ${!mobile && collapsed ? 'p-3' : 'p-6'} space-y-3`}>
-        {links.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} end={to === '/'}
-            onClick={() => { if (mobile) setMobileOpen(false); }}
-            className={({ isActive }) =>
-              `flex items-center ${!mobile && collapsed ? 'justify-center px-3 py-4' : 'gap-4 px-5 py-4'} rounded-2xl transition-all duration-300 ${
-                isActive
-                  ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-white/10 shadow-lg'
-                  : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-white'
-              }`
-            }
-            title={!mobile && collapsed ? label : undefined}
-          >
-            <Icon className="w-5 h-5 flex-shrink-0" />
-            {(mobile || !collapsed) && <span className="font-medium text-sm tracking-wide">{label}</span>}
-          </NavLink>
-        ))}
+      <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {links.map(({ to, icon: Icon, label }) => {
+          const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
+          return (
+            <button
+              key={to}
+              onClick={() => handleNav(to)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                border: isActive ? '1px solid var(--active-nav-border)' : '1px solid transparent',
+                background: isActive ? 'var(--active-nav-from)' : 'transparent',
+                color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                fontWeight: isActive ? 600 : 500,
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                width: '100%',
+                textAlign: 'left',
+                letterSpacing: '0.01em',
+              }}
+              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = 'var(--hover-surface)'; e.currentTarget.style.color = 'var(--text-primary)'; } }}
+              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+            >
+              <Icon style={{ width: '20px', height: '20px', flexShrink: 0 }} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </nav>
 
-      {/* Bottom */}
-      <div className={`${!mobile && collapsed ? 'p-3' : 'p-6'} border-t border-white/5 space-y-3`}>
-        <button onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-          className={`flex items-center ${!mobile && collapsed ? 'justify-center px-3 py-4' : 'gap-4 px-5 py-4'} w-full rounded-2xl text-[var(--text-secondary)] hover:bg-white/5 hover:text-white transition-all text-sm font-medium`}
-          title={!mobile && collapsed ? (language === 'en' ? 'العربية' : 'English') : undefined}
+      {/* Bottom Actions */}
+      <div style={{ padding: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {/* Theme */}
+        <button onClick={() => { toggleTheme(); }} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderRadius: '12px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontSize: '14px', fontWeight: 500, cursor: 'pointer', width: '100%', textAlign: 'left', transition: 'all 0.2s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover-surface)'; e.currentTarget.style.color = 'var(--accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
         >
-          <Globe className="w-5 h-5 flex-shrink-0" />
-          {(mobile || !collapsed) && <span>{language === 'en' ? 'العربية' : 'English'}</span>}
+          {theme === 'dark' ? <Sun style={{ width: '20px', height: '20px', flexShrink: 0 }} /> : <Moon style={{ width: '20px', height: '20px', flexShrink: 0 }} />}
+          <span>{theme === 'dark' ? t('lightMode') : t('darkMode')}</span>
         </button>
-        <button onClick={() => { logout(); navigate('/login'); }}
-          className={`flex items-center ${!mobile && collapsed ? 'justify-center px-3 py-4' : 'gap-4 px-5 py-4'} w-full rounded-2xl text-red-400/80 hover:bg-red-500/10 hover:text-red-400 transition-all text-sm font-medium`}
-          title={!mobile && collapsed ? t('logout') : undefined}
+        {/* Language */}
+        <button onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderRadius: '12px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontSize: '14px', fontWeight: 500, cursor: 'pointer', width: '100%', textAlign: 'left', transition: 'all 0.2s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover-surface)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
         >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          {(mobile || !collapsed) && <span>{t('logout')}</span>}
+          <Globe style={{ width: '20px', height: '20px', flexShrink: 0 }} />
+          <span>{language === 'en' ? 'العربية' : 'English'}</span>
+        </button>
+
+        <div style={{ height: '1px', background: 'var(--border-color)', margin: '6px 4px' }} />
+
+        {/* Logout */}
+        <button onClick={() => { logout(); navigate('/login'); }} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderRadius: '12px', border: 'none', background: 'transparent', color: 'var(--badge-fail-text)', opacity: 0.7, fontSize: '14px', fontWeight: 500, cursor: 'pointer', width: '100%', textAlign: 'left', transition: 'all 0.2s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--badge-fail-bg)'; e.currentTarget.style.opacity = '1'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.opacity = '0.7'; }}
+        >
+          <LogOut style={{ width: '20px', height: '20px', flexShrink: 0 }} />
+          <span>{t('logout')}</span>
         </button>
       </div>
-    </>
+    </aside>
+  );
+
+  /* ─── Backdrop Overlay (shared for desktop + mobile) ─── */
+  const backdrop = (
+    <div
+      onClick={closeDrawer}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.45)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        zIndex: 50,
+        opacity: drawerOpen ? 1 : 0,
+        pointerEvents: drawerOpen ? 'auto' : 'none',
+        transition: 'opacity 0.3s ease',
+      }}
+    />
   );
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg-primary)] bg-grid">
-      {/* Mobile Top Header Bar */}
-      <div className="fixed top-0 left-0 right-0 h-16 bg-[#0a0a14]/90 backdrop-blur-xl border-b border-white/5 flex items-center px-4 gap-4 z-30 lg:hidden">
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="p-2 rounded-xl text-[var(--text-secondary)] hover:bg-white/5 hover:text-white transition-all"
-          aria-label="Open menu"
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-primary)' }} className="bg-grid">
+
+      {/* ─── Mobile Header Bar (visible below lg) ─── */}
+      <header
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '56px',
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border-color)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          gap: '12px',
+          zIndex: 30,
+        }}
+        className="lg:hidden"
+      >
+        <button onClick={openDrawer} aria-label="Open menu"
+          style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '10px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover-surface)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
         >
-          <Menu className="w-6 h-6" />
+          <Menu style={{ width: '22px', height: '22px' }} />
         </button>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <FlaskConical className="w-5 h-5 text-white" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+          <div style={{
+            width: '32px', height: '32px', borderRadius: '8px',
+            background: 'linear-gradient(135deg, #7C3AED, #8B5CF6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <FlaskConical style={{ width: '16px', height: '16px', color: 'white' }} />
           </div>
-          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          <h1 style={{ fontSize: '16px', fontWeight: 700, background: 'linear-gradient(to right, #a78bfa, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             {t('appName')}
           </h1>
         </div>
-      </div>
+        <button onClick={toggleTheme} aria-label="Toggle theme"
+          style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '10px', border: 'none', background: 'var(--hover-surface)', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s ease' }}
+        >
+          {theme === 'dark' ? <Sun style={{ width: '16px', height: '16px' }} /> : <Moon style={{ width: '16px', height: '16px' }} />}
+        </button>
+      </header>
 
-      {/* Mobile Sidebar Overlay */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-              onClick={() => setMobileOpen(false)}
-            />
-            {/* Sidebar panel */}
-            <motion.aside
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 w-[280px] bg-[#0a0a14]/95 backdrop-blur-xl border-r border-white/5 flex flex-col z-50 shadow-2xl lg:hidden"
-            >
-              {sidebarContent(true)}
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+      {/* ─── Desktop Icon Rail ─── */}
+      {iconRail}
 
-      {/* Desktop Sidebar */}
-      <aside
-        className={`${collapsed ? 'w-[80px]' : 'w-[280px]'} bg-[#0a0a14]/80 backdrop-blur-xl border-x border-white/5 flex-col flex-shrink-0 z-20 shadow-2xl transition-all duration-300 ease-in-out hidden lg:flex`}
+      {/* ─── Backdrop (desktop + mobile) ─── */}
+      {backdrop}
+
+      {/* ─── Full Sidebar Drawer (desktop + mobile) ─── */}
+      {sidebarDrawer}
+
+      {/* ─── Main Content ─── */}
+      <main
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: '24px',
+          paddingTop: '80px',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          zIndex: 10,
+          overflowX: 'hidden',
+        }}
+        className="lg:pt-10 lg:p-10 xl:p-12"
       >
-        {sidebarContent(false)}
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 min-w-0 p-4 pt-20 lg:pt-8 lg:p-8 xl:p-12 flex flex-col relative z-10 overflow-x-hidden">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="flex-1 w-full max-w-6xl mx-auto">
+        <div style={{ flex: 1, width: '100%', maxWidth: '1280px', margin: '0 auto' }}>
           <Outlet />
-        </motion.div>
+        </div>
       </main>
     </div>
   );
