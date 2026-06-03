@@ -68,10 +68,10 @@ export default function LiveTestPage() {
   }, [id, token]);
 
   return (
-    <div className="space-y-8">
+    <div className="live-page">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3 text-[var(--text-heading)] tracking-tight">
+      <div className="live-header">
+        <h1 className="live-title">
           {completed ? (
             finalStatus === 'Passed' ? <CheckCircle2 className="w-7 h-7 text-[var(--badge-pass-text)]" /> : <XCircle className="w-7 h-7 text-[var(--badge-fail-text)]" />
           ) : (
@@ -81,32 +81,32 @@ export default function LiveTestPage() {
         </h1>
         {completed && (
           <button onClick={() => navigate(`/report/${id}`)}
-            className="login-submit px-6 py-3 text-sm w-auto">
+            className="live-report-btn">
             <span>{t('viewReport')}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="live-grid">
         {/* Browser Stream — 2/3 width */}
-        <div className="lg:col-span-2">
-          <div className="overflow-hidden" style={{ borderRadius: '16px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+        <div className="live-stream-col">
+          <div className="live-browser-frame">
             {/* Browser chrome bar */}
-            <div className="px-5 py-3.5 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}>
-              <div className="flex gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ background: 'rgba(239, 68, 68, 0.5)' }} />
-                <div className="w-3 h-3 rounded-full" style={{ background: 'rgba(234, 179, 8, 0.5)' }} />
-                <div className="w-3 h-3 rounded-full" style={{ background: 'rgba(34, 197, 94, 0.5)' }} />
+            <div className="live-browser-chrome">
+              <div className="live-browser-dots">
+                <div className="live-dot live-dot--red" />
+                <div className="live-dot live-dot--yellow" />
+                <div className="live-dot live-dot--green" />
               </div>
-              <div className="flex-1 mx-2 px-4 py-2 text-xs text-[var(--text-secondary)] truncate font-mono flex items-center gap-2" style={{ borderRadius: '8px', background: 'var(--hover-surface)' }}>
+              <div className="live-browser-url">
                 <Monitor className="w-3 h-3 flex-shrink-0" />
                 {language === 'ar' ? 'بث مباشر للمتصفح' : 'Live Browser Stream'}
               </div>
               {!completed && <div className="w-2.5 h-2.5 rounded-full bg-red-500 pulse-live flex-shrink-0" />}
             </div>
             {/* Frame */}
-            <div className="aspect-video flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
+            <div className="live-viewport">
               {frame ? (
                 <img src={`data:image/jpeg;base64,${frame}`} alt="Browser" className="w-full h-full object-contain" />
               ) : (
@@ -120,49 +120,46 @@ export default function LiveTestPage() {
         </div>
 
         {/* Steps Timeline — 1/3 width */}
-        <div className="overflow-hidden flex flex-col max-h-[650px]" style={{ borderRadius: '16px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}>
-          <div className="px-6 py-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border-color)' }}>
-            <h2 className="text-sm font-semibold flex items-center gap-2 text-[var(--text-heading)] uppercase tracking-wider">
-              {t('testSteps')}
-              {steps.length > 0 && <span className="text-xs text-[var(--text-secondary)] normal-case tracking-normal font-normal">({steps.length})</span>}
-            </h2>
-          </div>
+        <div className="live-steps-col">
+          <div className="live-steps-card">
+            <div className="live-steps-header">
+              <h2 className="live-steps-title">
+                {t('testSteps')}
+                {steps.length > 0 && <span className="live-steps-count">({steps.length})</span>}
+              </h2>
+            </div>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {steps.length === 0 && !completed && (
-              <div className="text-center py-12 text-[var(--text-secondary)]">
-                <Loader2 className="w-6 h-6 mx-auto mb-3 animate-spin opacity-50" />
-                <p className="text-xs">{language === 'ar' ? 'في انتظار الخطوات...' : 'Waiting for steps...'}</p>
-              </div>
-            )}
-            {steps.map((step, i) => (
-              <motion.div key={i} initial={{ opacity: 0, x: language === 'ar' ? -12 : 12 }} animate={{ opacity: 1, x: 0 }}
-                className="p-5 transition-all"
-                style={{
-                  borderRadius: '14px',
-                  border: `1px solid ${step.passed ? 'var(--badge-pass-border)' : 'var(--badge-fail-border)'}`,
-                  background: step.passed ? 'var(--badge-pass-bg)' : 'var(--badge-fail-bg)',
-                }}>
-                <div className="flex items-start gap-3">
-                  {step.passed
-                    ? <CheckCircle2 className="w-5 h-5 text-[var(--badge-pass-text)] mt-0.5 flex-shrink-0" />
-                    : <XCircle className="w-5 h-5 text-[var(--badge-fail-text)] mt-0.5 flex-shrink-0" />
-                  }
+            <div className="live-steps-scroll">
+              {steps.length === 0 && !completed && (
+                <div className="live-steps-empty">
+                  <Loader2 className="w-6 h-6 mx-auto mb-3 animate-spin opacity-50" />
+                  <p className="text-xs">{language === 'ar' ? 'في انتظار الخطوات...' : 'Waiting for steps...'}</p>
+                </div>
+              )}
+              {steps.map((step, i) => (
+                <motion.div key={i} initial={{ opacity: 0, x: language === 'ar' ? -12 : 12 }} animate={{ opacity: 1, x: 0 }}
+                  className={`live-step-item ${step.passed ? 'live-step-item--pass' : 'live-step-item--fail'}`}>
+                  <div className="live-step-icon">
+                    {step.passed
+                      ? <CheckCircle2 className="w-[18px] h-[18px] text-[var(--badge-pass-text)]" />
+                      : <XCircle className="w-[18px] h-[18px] text-[var(--badge-fail-text)]" />
+                    }
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)] leading-relaxed">{language === 'ar' ? step.descriptionAr : step.description}</p>
+                    <p className="live-step-desc">{language === 'ar' ? step.descriptionAr : step.description}</p>
                     {step.errorMessage && (
-                      <div className="mt-3 p-3.5" style={{ borderRadius: '10px', background: 'var(--badge-fail-bg)', border: '1px solid var(--badge-fail-border)' }}>
-                        <p className="text-xs text-[var(--badge-fail-text)] font-mono leading-relaxed break-all">{step.errorMessage}</p>
+                      <div className="live-step-error">
+                        <p className="live-step-error-text">{step.errorMessage}</p>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 mt-2.5">
-                      <Clock className="w-3 h-3 text-[var(--text-secondary)]" />
-                      <span className="text-[11px] text-[var(--text-secondary)] font-mono">{step.durationMs}ms</span>
+                    <div className="live-step-duration">
+                      <Clock className="w-3 h-3" />
+                      <span>{step.durationMs}ms</span>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

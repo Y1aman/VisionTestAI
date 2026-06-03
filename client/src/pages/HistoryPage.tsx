@@ -25,70 +25,74 @@ export default function HistoryPage() {
   const statusBadge = (status: string) => {
     const key = `status${status}` as any;
     const label = t(key) || status;
-    const cls = status === 'Passed' ? 'badge-passed' : status === 'Failed' ? 'badge-failed' : status === 'Running' ? 'badge-running' : status === 'Queued' ? 'badge-queued' : 'badge-pending';
-    return <span className={`badge ${cls}`}>{label}</span>;
+    const cls = status === 'Passed' ? 'history-badge--pass'
+              : status === 'Failed' ? 'history-badge--fail'
+              : status === 'Running' ? 'history-badge--run'
+              : status === 'Queued' ? 'history-badge--pending'
+              : 'history-badge--pending';
+    return <span className={`history-badge ${cls}`}>{label}</span>;
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3 text-[var(--text-heading)] tracking-tight">
-          <div className="w-11 h-11 flex items-center justify-center flex-shrink-0" style={{ borderRadius: '12px', background: 'var(--accent-glow)' }}>
+    <div className="history-page">
+      {/* Header */}
+      <div className="history-header">
+        <h1 className="history-title">
+          <div className="history-title-icon">
             <History className="w-5 h-5 text-[var(--accent)]" />
           </div>
           {t('history')}
         </h1>
-        <p className="text-[var(--text-secondary)] mt-2 text-base">{language === 'ar' ? 'جميع سجلات الاختبارات السابقة' : 'All past test execution records'}</p>
+        <p className="history-subtitle">{language === 'ar' ? 'جميع سجلات الاختبارات السابقة' : 'All past test execution records'}</p>
       </div>
 
-      <div className="overflow-hidden" style={{ borderRadius: '16px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}>
+      {/* Table Card */}
+      <div className="history-card">
         {loading ? (
-          <p className="text-center py-20 text-[var(--text-secondary)] text-sm">{t('loading')}</p>
+          <p className="history-empty">{t('loading')}</p>
         ) : tests.length === 0 ? (
-          <p className="text-center py-20 text-[var(--text-secondary)] text-sm">{t('noData')}</p>
+          <p className="history-empty">{t('noData')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="history-table-wrap">
+            <table className="history-table">
               <thead>
-                <tr className="text-[var(--text-secondary)] text-xs uppercase tracking-wider" style={{ background: 'var(--hover-surface)' }}>
-                  <th className="text-start px-6 py-4 font-medium w-12">#</th>
-                  <th className="text-start px-5 py-4 font-medium">{language === 'ar' ? 'الوصف' : 'Description'}</th>
-                  <th className="text-start px-5 py-4 font-medium">{language === 'ar' ? 'الرابط' : 'URL'}</th>
-                  <th className="text-start px-5 py-4 font-medium">{language === 'ar' ? 'الحالة' : 'Status'}</th>
-                  <th className="text-start px-5 py-4 font-medium">{language === 'ar' ? 'الخطوات' : 'Steps'}</th>
-                  <th className="text-start px-5 py-4 font-medium">{t('duration')}</th>
-                  <th className="text-start px-5 py-4 font-medium">{t('createdAt')}</th>
-                  <th className="px-5 py-4 w-10"></th>
+                <tr className="history-thead-row">
+                  <th className="history-th history-th--num">#</th>
+                  <th className="history-th">{language === 'ar' ? 'الوصف' : 'Description'}</th>
+                  <th className="history-th">{language === 'ar' ? 'الرابط' : 'URL'}</th>
+                  <th className="history-th">{language === 'ar' ? 'الحالة' : 'Status'}</th>
+                  <th className="history-th">{language === 'ar' ? 'الخطوات' : 'Steps'}</th>
+                  <th className="history-th">{t('duration')}</th>
+                  <th className="history-th">{t('createdAt')}</th>
+                  <th className="history-th history-th--action"></th>
                 </tr>
               </thead>
               <tbody>
                 {tests.map((test, i) => (
                   <motion.tr key={test.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
-                    className="border-t border-[var(--border-color)] hover:bg-[var(--hover-surface)] transition-colors duration-150 cursor-pointer group"
+                    className="history-row"
                     onClick={() => navigate(test.status === 'Running' ? `/live/${test.id}` : `/report/${test.id}`)}>
-                    <td className="px-6 py-5 text-xs text-[var(--text-secondary)] font-mono">{(page - 1) * 15 + i + 1}</td>
-                    <td className="px-5 py-5 max-w-[220px]">
-                      <p className="text-sm truncate text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors">{test.prompt}</p>
+                    <td className="history-td history-td--num">{(page - 1) * 15 + i + 1}</td>
+                    <td className="history-td history-td--desc">
+                      <p className="history-desc-text">{test.prompt}</p>
                     </td>
-                    <td className="px-5 py-5 text-xs text-[var(--text-secondary)] max-w-[180px] truncate font-mono">
-                      <div className="flex items-center gap-1">
+                    <td className="history-td history-td--url">
+                      <div className="history-url-wrap">
                         <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-50" />{test.targetUrl}
                       </div>
                     </td>
-                    <td className="px-5 py-5">{statusBadge(test.status)}</td>
-                    <td className="px-5 py-5 text-sm">
-                      <span className="text-[var(--badge-pass-text)] font-medium">{test.passedSteps}</span>
-                      <span className="text-[var(--text-secondary)] mx-0.5">/</span>
-                      <span className="text-[var(--text-secondary)]">{test.totalSteps}</span>
+                    <td className="history-td">{statusBadge(test.status)}</td>
+                    <td className="history-td history-td--steps">
+                      <span className="history-steps-pass">{test.passedSteps}</span>
+                      <span className="history-steps-sep">/</span>
+                      <span className="history-steps-total">{test.totalSteps}</span>
                     </td>
-                    <td className="px-5 py-5 text-xs text-[var(--text-secondary)]">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 opacity-50" />
-                        {test.durationMs ? `${(test.durationMs/1000).toFixed(1)}s` : '—'}
-                      </div>
+                    <td className="history-td history-td--duration">
+                      <Clock className="w-3 h-3 opacity-50" />
+                      {test.durationMs ? `${(test.durationMs/1000).toFixed(1)}s` : '—'}
                     </td>
-                    <td className="px-5 py-5 text-xs text-[var(--text-secondary)]">{new Date(test.createdAt).toLocaleString()}</td>
-                    <td className="px-5 py-5">
+                    <td className="history-td history-td--date">{new Date(test.createdAt).toLocaleString()}</td>
+                    <td className="history-td history-td--arrow">
                       <ArrowUpRight className="w-4 h-4 text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </td>
                   </motion.tr>
@@ -100,33 +104,24 @@ export default function HistoryPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 p-5" style={{ borderTop: '1px solid var(--border-color)' }}>
+          <div className="history-pagination">
             <button
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page === 1}
-              className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--hover-surface)] disabled:opacity-30 transition-all"
-              style={{ borderRadius: '10px' }}
+              className="history-page-arrow"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             {Array.from({ length: totalPages }, (_, i) => (
               <button key={i} onClick={() => setPage(i + 1)}
-                className="w-9 h-9 text-xs font-medium transition-all duration-200"
-                style={{
-                  borderRadius: '10px',
-                  ...(page === i + 1
-                    ? { background: 'var(--accent)', color: 'white', boxShadow: '0 2px 8px var(--accent-glow)' }
-                    : { color: 'var(--text-secondary)' }
-                  ),
-                }}>
+                className={`history-page-num ${page === i + 1 ? 'history-page-num--active' : ''}`}>
                 {i + 1}
               </button>
             ))}
             <button
               onClick={() => setPage(Math.min(totalPages, page + 1))}
               disabled={page === totalPages}
-              className="w-9 h-9 flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--hover-surface)] disabled:opacity-30 transition-all"
-              style={{ borderRadius: '10px' }}
+              className="history-page-arrow"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
