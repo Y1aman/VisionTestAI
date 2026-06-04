@@ -23,11 +23,35 @@ export default function LiveTestPage() {
   useEffect(() => {
     if (!id || !token) return;
 
-    const apiBase = import.meta.env.VITE_API_URL || '';
+    // Build the hub URL — automatically detect wss:// vs ws://
+    // Handles: 1) Explicit VITE_API_URL (e.g. Render split-service)
+    //          2) Same-origin (reverse-proxy or local dev proxy)
+    const configuredBase = import.meta.env.VITE_API_URL || '';
+    let hubUrl: string;
+
+    if (configuredBase) {
+      // Explicit API URL set (e.g. "https://myapi.onrender.com/api")
+      // Strip trailing /api if present since the hub is at /hubs/test-stream
+      let base = configuredBase.replace(/\/api\/?$/, '');
+      // Force wss:// if the API base is HTTPS
+      if (base.startsWith('https://')) {
+        base = base.replace(/^https:\/\//, 'wss://');
+      } else if (base.startsWith('http://')) {
+        base = base.replace(/^http:\/\//, 'ws://');
+      }
+      hubUrl = `${base}/hubs/test-stream`;
+    } else {
+      // No VITE_API_URL — same origin (production behind reverse proxy or local dev)
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      hubUrl = `${wsProtocol}//${window.location.host}/hubs/test-stream`;
+    }
+
+    console.log('[LiveTest] Connecting to hub:', hubUrl);
+
     const connection = new HubConnectionBuilder()
-      .withUrl(`${apiBase}/hubs/test-stream?access_token=${token}`)
-      .withAutomaticReconnect()
-      .configureLogging(LogLevel.Warning)
+      .withUrl(hubUrl, { accessTokenFactory: () => token! })
+      .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+      .configureLogging(LogLevel.Information)
       .build();
 
     connRef.current = connection;
