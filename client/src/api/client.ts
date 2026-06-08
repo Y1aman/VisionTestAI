@@ -1,7 +1,11 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
+// In production builds VITE_API_URL is set via .env.production
+// In local dev it falls back to '/api' which Vite proxies to the backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+const api = axios.create({ baseURL: API_BASE_URL });
 
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;

@@ -23,29 +23,14 @@ export default function LiveTestPage() {
   useEffect(() => {
     if (!id || !token) return;
 
-    // Build the hub URL — automatically detect wss:// vs ws://
-    // Handles: 1) Explicit VITE_API_URL (e.g. Render split-service)
-    //          2) Same-origin (reverse-proxy or local dev proxy)
+    // Build the SignalR hub URL from the same base as the API client.
+    // VITE_API_URL is set in .env.production (e.g. "https://…backend.onrender.com/api").
+    // We strip the trailing "/api" and append the hub path.
+    // In local dev VITE_API_URL is empty, so we use a relative path (Vite proxy handles it).
     const configuredBase = import.meta.env.VITE_API_URL || '';
-    let hubUrl: string;
-
-    if (configuredBase) {
-      // Explicit API URL set (e.g. "https://myapi.onrender.com/api")
-      // Strip trailing /api if present since the hub is at /hubs/test-stream
-      let base = configuredBase.replace(/\/api\/?$/, '');
-      // Force wss:// if the API base is HTTPS
-      if (base.startsWith('https://')) {
-        base = base.replace(/^https:\/\//, 'wss://');
-      } else if (base.startsWith('http://')) {
-        base = base.replace(/^http:\/\//, 'ws://');
-      }
-      hubUrl = `${base}/hubs/test-stream`;
-    } else {
-      // No VITE_API_URL — same origin (production behind reverse proxy or local dev)
-      hubUrl = window.location.hostname === 'localhost'
-        ? '/hubs/test-stream'
-        : 'https://visiontestai-backend.onrender.com/hubs/test-stream';
-    }
+    const hubUrl = configuredBase
+      ? `${configuredBase.replace(/\/api\/?$/, '')}/hubs/test-stream`
+      : '/hubs/test-stream';
 
     console.log('[LiveTest] Connecting to hub:', hubUrl);
 
