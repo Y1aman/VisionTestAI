@@ -42,8 +42,9 @@ export default function LiveTestPage() {
       hubUrl = `${base}/hubs/test-stream`;
     } else {
       // No VITE_API_URL — same origin (production behind reverse proxy or local dev)
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      hubUrl = `${wsProtocol}//${window.location.host}/hubs/test-stream`;
+      hubUrl = window.location.hostname === 'localhost'
+        ? '/hubs/test-stream'
+        : 'https://visiontestai-backend.onrender.com/hubs/test-stream';
     }
 
     console.log('[LiveTest] Connecting to hub:', hubUrl);
@@ -82,7 +83,7 @@ export default function LiveTestPage() {
           setFinalStatus(res.data.status);
           clearInterval(poll);
         }
-      } catch {}
+      } catch { }
     }, 3000);
 
     return () => {
