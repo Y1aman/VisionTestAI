@@ -304,107 +304,119 @@ public class PlaywrightEngine : IPlaywrightEngine
         return Convert.ToBase64String(bytes);
     }
 
-    // ── Common error indicator selectors (conservative set to minimise false positives) ──
-    // Each selector is checked for *visibility* — hidden/display:none elements are ignored.
-    private static readonly string[] ErrorSelectors = new[]
-    {
-        // ARIA / semantic
-        "[role='alert']",
-        // Common CSS class patterns (case-insensitive attribute selectors)
-        "[class*='error-message' i]",
-        "[class*='error_message' i]",
-        "[class*='errormessage' i]",
-        "[class*='alert-danger' i]",
-        "[class*='alert-error' i]",
-        "[class*='form-error' i]",
-        "[class*='field-error' i]",
-        "[class*='validation-error' i]",
-        "[class*='invalid-feedback' i]",
-        "[class*='error-banner' i]",
-        "[class*='login-error' i]",
-        "[class*='auth-error' i]",
-        // Data-test attributes often used in testing-oriented sites (e.g., Saucedemo)
-        "[data-test='error']",
-        "[data-testid='error']",
-        // Common ID patterns
-        "#error-message",
-        "#login-error",
-        "#auth-error",
-        // Toast / notification patterns
-        ".toast-error",
-        ".notification-error",
-        ".Toastify__toast--error",
-    };
-
     /// <summary>
     /// Probes the page for visible error indicators after an interactive action.
+    /// Runs entirely in the browser context via EvaluateAsync for maximum compatibility.
     /// Returns null if no errors found, or a descriptive error string if one is detected.
-    /// Only considers *visible* elements to avoid false positives from hidden templates.
     /// </summary>
     private async Task<string?> DetectPageErrorAsync(IPage page)
     {
         try
         {
-            // Build a combined selector for efficiency (single DOM query)
-            var combinedSelector = string.Join(", ", ErrorSelectors);
-            var errorLocator = page.Locator(combinedSelector);
-
-            // Quick check: are any error elements present in the DOM?
-            var count = await errorLocator.CountAsync();
-            if (count == 0) return null;
-
-            // Check each matched element for visibility and non-empty text
-            for (var i = 0; i < count; i++)
-            {
-                var element = errorLocator.Nth(i);
-                try
-                {
-                    var isVisible = await element.IsVisibleAsync();
-                    if (!isVisible) continue;
-
-                    var text = (await element.TextContentAsync())?.Trim();
-                    if (string.IsNullOrWhiteSpace(text)) continue;
-
-                    // Ignore very short text (likely icons or symbols, not real messages)
-                    if (text.Length < 5) continue;
-
-                    _logger.LogInformation(
-                        "[ErrorDetection] Found visible error indicator: \"{Text}\"", text);
-
-                    // Truncate very long error messages
-                    if (text.Length > 300)
-                        text = text[..300] + "…";
-
-                    return $"Page error detected: {text}";
-                }
-                catch
-                {
-                    // Element may have become stale; skip it
-                }
-            }
-
-            // Also check for common JavaScript-based error patterns in the page
-            // e.g., sites that set error text via JS without semantic markup
-            var jsError = await page.EvaluateAsync<string?>(@"() => {
-                // Check for elements with 'error' in class that contain visible text
-                const els = document.querySelectorAll(
-                    '.error:not([style*=""display: none""]):not([hidden]),' +
-                    '.errors:not([style*=""display: none""]):not([hidden])'
-                );
-                for (const el of els) {
+            var errorText = await page.EvaluateAsync<string?>(@"() => {
+                // Helper: check if an element is truly visible
+                function isVisible(el) {
+                    if (!el) return false;
                     const style = window.getComputedStyle(el);
-                    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
-                    const text = el.textContent?.trim();
-                    if (text && text.length >= 5 && text.length <= 500) return text;
+                    if (style.display === 'none' || style.visibility === 'hidden') return false;
+                    if (style.opacity === '0') return false;
+                    // Check offsetParent (null means hidden), except for fixed/sticky elements
+                    if (el.offsetParent === null && style.position !== 'fixed' && style.position !== 'sticky') return false;
+                    return true;
                 }
+
+                // Helper: extract meaningful text from an element
+                function getText(el) {
+                    const text = el.textContent?.trim();
+                    if (!text || text.length < 5 || text.length > 500) return null;
+                    return text;
+                }
+
+                // ── Phase 1: Targeted selectors (high confidence) ──
+                const targetedSelectors = [
+                    // ARIA semantic
+                    '[role=""alert""]',
+                    // Data-test attributes (Saucedemo, Cypress-style apps)
+                    '[data-test=""error""]',
+                    '[data-testid=""error""]',
+                    '[data-test=""error-message""]',
+                    '[data-testid=""error-message""]',
+                    // Common class-based patterns
+                    '.error-message-container',
+                    '.error-message',
+                    '.error_message',
+                    '.errormessage',
+                    '.alert-danger',
+                    '.alert-error',
+                    '.form-error',
+                    '.field-error',
+                    '.validation-error',
+                    '.invalid-feedback',
+                    '.error-banner',
+                    '.login-error',
+                    '.auth-error',
+                    '.toast-error',
+                    '.notification-error',
+                    '.Toastify__toast--error',
+                    // ID-based patterns
+                    '#error-message',
+                    '#login-error',
+                    '#auth-error',
+                    '#error',
+                ];
+
+                for (const sel of targetedSelectors) {
+                    try {
+                        const els = document.querySelectorAll(sel);
+                        for (const el of els) {
+                            if (!isVisible(el)) continue;
+                            const text = getText(el);
+                            if (text) return text;
+                        }
+                    } catch (e) { /* invalid selector, skip */ }
+                }
+
+                // ── Phase 2: Generic .error class (very common pattern) ──
+                try {
+                    const errorEls = document.querySelectorAll('.error, .errors');
+                    for (const el of errorEls) {
+                        if (!isVisible(el)) continue;
+                        const text = getText(el);
+                        if (text) return text;
+                    }
+                } catch (e) {}
+
+                // ── Phase 3: Scan ALL visible elements for error-related class names ──
+                // This catches custom class names like 'my-app-error', 'formError', etc.
+                try {
+                    const allEls = document.querySelectorAll('*');
+                    for (const el of allEls) {
+                        const cls = el.className;
+                        if (typeof cls !== 'string') continue;
+                        const lower = cls.toLowerCase();
+                        // Must contain 'error' in a class name
+                        if (!lower.includes('error')) continue;
+                        // Exclude common false-positive patterns (e.g., error-button, error-icon)
+                        if (lower.includes('error-button') || lower.includes('error-icon') || lower.includes('error-close')) continue;
+                        if (!isVisible(el)) continue;
+                        const text = getText(el);
+                        if (text) return text;
+                    }
+                } catch (e) {}
+
                 return null;
             }");
 
-            if (!string.IsNullOrWhiteSpace(jsError))
+            if (!string.IsNullOrWhiteSpace(errorText))
             {
                 _logger.LogInformation(
-                    "[ErrorDetection] Found JS-level error indicator: \"{Text}\"", jsError);
-                return $"Page error detected: {jsError}";
+                    "[ErrorDetection] Found visible error on page: \"{Text}\"", errorText);
+
+                // Truncate very long error messages
+                if (errorText.Length > 300)
+                    errorText = errorText[..300] + "…";
+
+                return $"Page error detected: {errorText}";
             }
 
             return null;
