@@ -62,7 +62,42 @@ public class PlaywrightEngine : IPlaywrightEngine
 
             try
             {
+                // Capture the URL before the action so we can detect unexpected non-navigation
+                var urlBefore = page.Url;
+
                 await ExecuteStepAsync(page, step);
+
+                // ── Post-action error detection for interactive steps ──
+                // The action succeeded at the DOM level, but the *application* may have
+                // responded with an error (e.g. "incorrect password", validation banner).
+                var isInteractive = step.Action is StepAction.Click or StepAction.Fill
+                    or StepAction.Navigate or StepAction.Press or StepAction.Select;
+
+                if (isInteractive)
+                {
+                    // Give the page time to render error states (SPA transitions, toasts, etc.)
+                    if (step.Action is StepAction.Click or StepAction.Press)
+                        await Task.Delay(PostActionSettleMs, cancellationToken);
+
+                    var pageError = await DetectPageErrorAsync(page);
+                    if (pageError is not null)
+                    {
+                        sw.Stop();
+                        result.Status = TestStatus.Failed;
+                        result.DurationMs = sw.ElapsedMilliseconds;
+                        result.ErrorMessage = pageError;
+                        _logger.LogWarning(
+                            "Step {Order} ({Action}) succeeded at DOM level but page shows error: {Error}",
+                            step.Order, step.Action, pageError);
+
+                        var errorScreenshot = await CaptureFrame(page);
+                        result.ScreenshotBase64 = errorScreenshot;
+                        await onFrame(step.Order - 1, errorScreenshot, step.Description, "Failed");
+                        await onStepComplete(result);
+                        continue;
+                    }
+                }
+
                 sw.Stop();
                 result.Status = TestStatus.Passed;
                 result.DurationMs = sw.ElapsedMilliseconds;
@@ -91,6 +126,8 @@ public class PlaywrightEngine : IPlaywrightEngine
     private const int NavigationTimeoutMs = 60_000;
     private const int InteractionTimeoutMs = 15_000;
     private const int QuickProbeTimeoutMs = 3_000; // Fast check before trying fallbacks
+    private const int ErrorProbeTimeoutMs = 2_000; // How long to wait for error elements after an action
+    private const int PostActionSettleMs = 1_500;  // Let the page settle after a click before probing
 
     // Common fallback selectors when AI-generated selectors don't match the actual DOM
     private static readonly Dictionary<string, string[]> FillSelectorFallbacks = new()
@@ -265,5 +302,118 @@ public class PlaywrightEngine : IPlaywrightEngine
     {
         var bytes = await page.ScreenshotAsync(new() { Type = ScreenshotType.Jpeg, Quality = 60 });
         return Convert.ToBase64String(bytes);
+    }
+
+    // ── Common error indicator selectors (conservative set to minimise false positives) ──
+    // Each selector is checked for *visibility* — hidden/display:none elements are ignored.
+    private static readonly string[] ErrorSelectors = new[]
+    {
+        // ARIA / semantic
+        "[role='alert']",
+        // Common CSS class patterns (case-insensitive attribute selectors)
+        "[class*='error-message' i]",
+        "[class*='error_message' i]",
+        "[class*='errormessage' i]",
+        "[class*='alert-danger' i]",
+        "[class*='alert-error' i]",
+        "[class*='form-error' i]",
+        "[class*='field-error' i]",
+        "[class*='validation-error' i]",
+        "[class*='invalid-feedback' i]",
+        "[class*='error-banner' i]",
+        "[class*='login-error' i]",
+        "[class*='auth-error' i]",
+        // Data-test attributes often used in testing-oriented sites (e.g., Saucedemo)
+        "[data-test='error']",
+        "[data-testid='error']",
+        // Common ID patterns
+        "#error-message",
+        "#login-error",
+        "#auth-error",
+        // Toast / notification patterns
+        ".toast-error",
+        ".notification-error",
+        ".Toastify__toast--error",
+    };
+
+    /// <summary>
+    /// Probes the page for visible error indicators after an interactive action.
+    /// Returns null if no errors found, or a descriptive error string if one is detected.
+    /// Only considers *visible* elements to avoid false positives from hidden templates.
+    /// </summary>
+    private async Task<string?> DetectPageErrorAsync(IPage page)
+    {
+        try
+        {
+            // Build a combined selector for efficiency (single DOM query)
+            var combinedSelector = string.Join(", ", ErrorSelectors);
+            var errorLocator = page.Locator(combinedSelector);
+
+            // Quick check: are any error elements present in the DOM?
+            var count = await errorLocator.CountAsync();
+            if (count == 0) return null;
+
+            // Check each matched element for visibility and non-empty text
+            for (var i = 0; i < count; i++)
+            {
+                var element = errorLocator.Nth(i);
+                try
+                {
+                    var isVisible = await element.IsVisibleAsync();
+                    if (!isVisible) continue;
+
+                    var text = (await element.TextContentAsync())?.Trim();
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+
+                    // Ignore very short text (likely icons or symbols, not real messages)
+                    if (text.Length < 5) continue;
+
+                    _logger.LogInformation(
+                        "[ErrorDetection] Found visible error indicator: \"{Text}\"", text);
+
+                    // Truncate very long error messages
+                    if (text.Length > 300)
+                        text = text[..300] + "…";
+
+                    return $"Page error detected: {text}";
+                }
+                catch
+                {
+                    // Element may have become stale; skip it
+                }
+            }
+
+            // Also check for common JavaScript-based error patterns in the page
+            // e.g., sites that set error text via JS without semantic markup
+            var jsError = await page.EvaluateAsync<string?>(@"() => {
+                // Check for elements with 'error' in class that contain visible text
+                const els = document.querySelectorAll(
+                    '.error:not([style*=""display: none""]):not([hidden]),' +
+                    '.errors:not([style*=""display: none""]):not([hidden])'
+                );
+                for (const el of els) {
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+                    const text = el.textContent?.trim();
+                    if (text && text.length >= 5 && text.length <= 500) return text;
+                }
+                return null;
+            }");
+
+            if (!string.IsNullOrWhiteSpace(jsError))
+            {
+                _logger.LogInformation(
+                    "[ErrorDetection] Found JS-level error indicator: \"{Text}\"", jsError);
+                return $"Page error detected: {jsError}";
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            // Error detection itself should never break the test flow
+            _logger.LogDebug(ex, "[ErrorDetection] Error probe failed (non-fatal)");
+            return null;
+        }
     }
 }
